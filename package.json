@@ -9,9 +9,14 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@nextui-org/react": "^1.0.8-beta.5",
+    "canvas-capture": "^2.0.1",
+    "dat.gui": "^0.7.9",
+    "gif.js.optimized": "^1.0.1",
     "next": "12.1.4",
     "react": "18.0.0",
-    "react-dom": "18.0.0"
+    "react-dom": "18.0.0",
+    "three": "^0.139.2"
   },
   "devDependencies": {
     "eslint": "8.13.0",
