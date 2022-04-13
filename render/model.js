@@ -1,8 +1,14 @@
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer";
+import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass";
+import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader";
 import * as THREE from "three";
+import { Ascension, Camera } from "./menus";
+import { useRouter } from "next/router";
 
-export default async function render(setLoading, bundleId, canvasRef) {
+export default async function Render(setLoading, bundleId, canvasRef) {
   const modelPath = "/models/" + bundleId;
 
   console.log("[SCENE] Initializing...");
@@ -13,7 +19,16 @@ export default async function render(setLoading, bundleId, canvasRef) {
   let renderer;
   let delta;
 
+  const children = new Map();
+
   const clock = new THREE.Clock();
+
+  const { GUI } = require("dat.gui");
+
+  const gui = new GUI({
+    autoPlace: true,
+    name: "Servant Control",
+  });
 
   async function init() {
     const container = canvasRef.current;
@@ -82,6 +97,14 @@ export default async function render(setLoading, bundleId, canvasRef) {
         modelPath + "/" + bundleId + ".png"
       );
 
+      children.set("all", object.children);
+
+      // Default Ascension is "3"
+      object.children = object.children.filter(
+        (child) =>
+          child.name.includes("joint_all_Base") || child.name.includes("3")
+      );
+
       let orderRender = 0;
 
       object.traverse(function (child) {
@@ -95,8 +118,7 @@ export default async function render(setLoading, bundleId, canvasRef) {
             alphaTest: 0.5,
           });
         }
-        child.castShadow = true;
-        child.receiveShadow = true;
+
         child.orderRender = orderRender++;
       });
 
@@ -109,9 +131,6 @@ export default async function render(setLoading, bundleId, canvasRef) {
       );
 
       // Menu
-      const { GUI } = require("dat.gui");
-      const gui = new GUI();
-
       const record = {
         "Record Animation (WEBM)": () => {
           console.log("[SCENE] Recording...");
@@ -188,11 +207,11 @@ export default async function render(setLoading, bundleId, canvasRef) {
         actionFolder.add(action, action.name);
       });
 
-      const cameraFolder = gui.addFolder("Camera");
+      Camera(camera, gui);
 
-      cameraFolder.add(camera.position, "x", -500, 500);
-      cameraFolder.add(camera.position, "y", -500, 500);
-      cameraFolder.add(camera.position, "z", -500, 500);
+      if (object.children.length > 0) {
+        Ascension(object, gui, children, THREE, texture);
+      }
 
       action.play();
 
@@ -203,13 +222,33 @@ export default async function render(setLoading, bundleId, canvasRef) {
       antialias: true,
       preserveDrawingBuffer: true,
       alpha: true,
-      logarithmicDepthBuffer: false,
+      logarithmicDepthBuffer: true,
     });
 
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setClearColor(0xffffff, 0);
     renderer.shadowMap.enabled = true;
+
+    // Post Processing FXAA
+    const renderPass = new RenderPass(scene, camera);
+    const fxaaPass = new ShaderPass(FXAAShader);
+    fxaaPass.uniforms["resolution"].value.set(
+      1 / window.innerWidth,
+      1 / window.innerHeight
+    );
+    const effectFXAA = new ShaderPass(FXAAShader);
+    effectFXAA.uniforms["resolution"].value.set(
+      1 / window.innerWidth,
+      1 / window.innerHeight
+    );
+    effectFXAA.renderToScreen = true;
+
+    const composer = new EffectComposer(renderer);
+    composer.addPass(renderPass);
+    composer.addPass(fxaaPass);
+    composer.addPass(effectFXAA);
+
     container.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -235,4 +274,9 @@ export default async function render(setLoading, bundleId, canvasRef) {
 
   await init();
   await animate();
+
+  return {
+    gui,
+    onWindowResize,
+  };
 }
